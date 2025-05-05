@@ -7,43 +7,49 @@ import time # To time the simulations
 import traceback # For detailed error printing
 import os # For path joining
 
-# --- Import your existing classes ---
-# Ensure the 'src' directory is accessible from where you run this script
-# Option 1: Run script from the parent directory of 'src'
-# Option 2: Add the parent directory to PYTHONPATH
-# Option 3: Adjust the import path below (e.g., if script is inside 'src')
 try:
     from src.simulator import Simulator
     from src.strategy import TradingStrategy, SMACrossoverStrategy, RSIStrategy, BollingerStrategy, CompositeStrategy
     from src.bandit_algorithms import Eps_Greedy, UCB, KL_UCB, GaussianThompsonSampling, SW_UCB, EWMA_UCB
     from src.data_utils import preprocess_data, calculate_features
+
 except ImportError as e:
     print(f"Import Error: {e}")
     print("Please ensure the 'src' directory is correctly structured and accessible.")
     print("You might need to adjust PYTHONPATH or run this script from the correct directory.")
     exit()
 
+
 # --- Configuration ---
 # Use os.path.join for better cross-platform compatibility
 DATA_DIR = 'data' # Specify directory containing data
 DATA_FILENAME = 'BSE_Sensex_30_Historical_Data_2021_2024.csv' # Specify filename
+# DATA_FILENAME = 'BSE_Sensex_30_Historical_Data_2021_2024.csv' 
 DATA_FILE = os.path.join(DATA_DIR, DATA_FILENAME)
 
 N_RUNS_MAB = 10 # Number of simulation runs per MAB algorithm
 HORIZON = None # Set to a specific number of steps if needed
 
 # MAB Reward Scaling Configuration
-ESTIMATED_MIN_REWARD = -0.05 # <<< --- Adjust: Estimated minimum single-step return
-ESTIMATED_MAX_REWARD = 0.05  # <<< --- Adjust: Estimated maximum single-step return
+ESTIMATED_MIN_REWARD = -0.05 #
+ESTIMATED_MAX_REWARD = 0.05  # 
 
-# --- Define Base Trading Strategies ---
+
+## Sensex Best Settings
 base_strategies: list[TradingStrategy] = [
     SMACrossoverStrategy(short_window=15, long_window=30),
     RSIStrategy(rsi_window=9, low=40, high=90),
     BollingerStrategy(window=10, num_std=1.5)
 ]
 
-# --- Create Composite Strategy ---
+# ##S&P 500 Best Settings
+# base_strategies: list[TradingStrategy] = [
+#     SMACrossoverStrategy(short_window=10, long_window=200),
+#     RSIStrategy(rsi_window=9, low=30, high=90),
+#     BollingerStrategy(window=20, num_std=1.8)
+# ]
+
+
 composite_strategy = CompositeStrategy(strategies=base_strategies)
 
 # --- Full List of Strategies to Simulate as Pure ---
@@ -59,19 +65,35 @@ mab_arm_strategy_names = [s.name for s in mab_chooses_from_strategies] # Names f
 # --- Define MAB Algorithms to Compare ---
 # Ensure keys are unique and descriptive
 algorithms_to_test = {
-    "Eps-Greedy(0.1)": Eps_Greedy(num_arms=num_mab_arms, epsilon=0.1),
-    "UCB(c=2)": UCB(num_arms=num_mab_arms, c=2.0,
-                    min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
-    "SW-UCB(W=100)": SW_UCB(num_arms=num_mab_arms, window_size=100, c=2.0,
-                           min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    # "Eps-Greedy(0.1)": Eps_Greedy(num_arms=num_mab_arms, epsilon=0.1),
+    # "Eps-Greedy(0.2)": Eps_Greedy(num_arms=num_mab_arms, epsilon=0.2),
+    # "Eps-Greedy(0.3)": Eps_Greedy(num_arms=num_mab_arms, epsilon=0.3),
+    # "Eps-Greedy(0.4)": Eps_Greedy(num_arms=num_mab_arms, epsilon=0.4),
+    # "Eps-Greedy(0.5)": Eps_Greedy(num_arms=num_mab_arms, epsilon=0.5),
+    # "UCB(c=2)": UCB(num_arms=num_mab_arms, c=2.0,
+    #                 min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    # "SW-UCB(W=100)": SW_UCB(num_arms=num_mab_arms, window_size=100, c=2.0,
+    #                        min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    "EWMA-UCB(L=0.90)": EWMA_UCB(num_arms=num_mab_arms, lambda_decay=0.90, c=2.0,
+                                min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    "EWMA-UCB(L=0.92)": EWMA_UCB(num_arms=num_mab_arms, lambda_decay=0.92, c=2.0,
+                                min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    "EWMA-UCB(L=0.94)": EWMA_UCB(num_arms=num_mab_arms, lambda_decay=0.94, c=2.0,
+                                min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    "EWMA-UCB(L=0.96)": EWMA_UCB(num_arms=num_mab_arms, lambda_decay=0.96, c=2.0,
+                                min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    "EWMA-UCB(L=0.98)": EWMA_UCB(num_arms=num_mab_arms, lambda_decay=0.98, c=2.0,
+                                min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
+    # Keep only one entry for L=0.99
     "EWMA-UCB(L=0.99)": EWMA_UCB(num_arms=num_mab_arms, lambda_decay=0.99, c=2.0,
                                 min_reward=ESTIMATED_MIN_REWARD, max_reward=ESTIMATED_MAX_REWARD),
-    "GaussTS": GaussianThompsonSampling(num_arms=num_mab_arms) # Shorter name
+    # "GaussTS": GaussianThompsonSampling(num_arms=num_mab_arms) # Shorter name
 }
 mab_algo_names = list(algorithms_to_test.keys())
 
 # --- Load and Prepare Data ---
 print(f"Loading data from {DATA_FILE}...")
+
 try:
     if not os.path.exists(DATA_FILE):
         raise FileNotFoundError(f"Data file not found at {DATA_FILE}")
@@ -332,24 +354,24 @@ try:
 
 
     # Pure Strategy Data
-    pure_returns_final = []
-    valid_pure_labels = []
-    valid_pure_x_pos = []
-    current_pure_x = current_mab_x # Start pure strategies after MABs
-    for i, name in enumerate(pure_strategy_names):
-         final_return = pure_strategy_results.get(name, np.array([np.nan]))[-1] # Get last value, default NaN
-         if pd.notna(final_return):
-             pure_returns_final.append(final_return)
-             valid_pure_labels.append(f"{name} (Pure)")
-             valid_pure_x_pos.append(current_pure_x)
-             current_pure_x += 1
-             plot_successful = True # Mark plot as having some data
+    # pure_returns_final = []
+    # valid_pure_labels = []
+    # valid_pure_x_pos = []
+    # current_pure_x = current_mab_x # Start pure strategies after MABs
+    # for i, name in enumerate(pure_strategy_names):
+    #      final_return = pure_strategy_results.get(name, np.array([np.nan]))[-1] # Get last value, default NaN
+    #      if pd.notna(final_return):
+    #          pure_returns_final.append(final_return)
+    #          valid_pure_labels.append(f"{name} (Pure)")
+    #          valid_pure_x_pos.append(current_pure_x)
+    #          current_pure_x += 1
+    #          plot_successful = True # Mark plot as having some data
 
-    # Plot Pure Strategies if any valid data exists
-    if valid_pure_labels:
-        for i in range(len(valid_pure_labels)):
-             ax.plot(valid_pure_x_pos[i], pure_returns_final[i], '*', color=strategy_colors[i % len(strategy_colors)],
-                    markersize=14, label=valid_pure_labels[i])
+    # # Plot Pure Strategies if any valid data exists
+    # if valid_pure_labels:
+    #     for i in range(len(valid_pure_labels)):
+    #          ax.plot(valid_pure_x_pos[i], pure_returns_final[i], '*', color=strategy_colors[i % len(strategy_colors)],
+    #                 markersize=14, label=valid_pure_labels[i])
 
 
     if plot_successful:
@@ -357,8 +379,8 @@ try:
         ax.set_xlabel('Algorithm / Strategy')
         ax.set_ylabel('Final Cumulative Return')
         # Combine valid labels and positions for x-axis
-        all_valid_labels = valid_mab_labels + valid_pure_labels
-        all_valid_x_pos = valid_mab_x_pos + valid_pure_x_pos
+        all_valid_labels = valid_mab_labels #+ valid_pure_labels
+        all_valid_x_pos = valid_mab_x_pos #+ valid_pure_x_pos
         ax.set_xticks(all_valid_x_pos)
         ax.set_xticklabels(all_valid_labels, rotation=45, ha='right')
         ax.grid(True, axis='y', linestyle='--', alpha=0.6)
